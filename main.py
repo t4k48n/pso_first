@@ -12,7 +12,7 @@ class Particle:
     I = 0.8
     Ag = 0.9
     Ap = 0.9
-    def __init__(self, n, xmin, xman, vmin, vmax, eval_func=mean_square):
+    def __init__(self, n, xmin, xman, vmin, vmax, eval_func=mean_square, find_min=True):
         """ Particleは粒子を表す
 
             引数:
@@ -22,11 +22,14 @@ class Particle:
                 vmin: 速度の初期値の最小値
                 vmax: 速度の初期値の最大値
                 eval_func: 状態の評価関数
+                find_min: 最小スコアを探す場合はTrue, 最大を探すならFalseにする
         """
         # 状態、速度の初期値を設定する（一様乱数）
         self.state, self.velocity = self._rand_state_velocity(n, xmin, xman, vmin, vmax)
         # 評価関数を引数で与えられたものに設定する
         self._evaluate = eval_func
+        # 最小値と最大値のどちらを探索するかをメモ。Trueなら最小値を探索
+        self.find_min = find_min
         # 初期状態とそのときのスコアを暫定ベストにする
         self.best = {"state": self.state.copy(),
                      "score": self._evaluate(self.state)}
@@ -40,7 +43,11 @@ class Particle:
                                                + self.Ag * delta_vel_by_g
         self.state = self.state + self.velocity
         new_score = self._evaluate(self.state)
-        if new_score < self.best["score"]:
+        if self.find_min:
+            compare = lambda x, y: x < y
+        else:
+            compare = lambda x, y: x > y
+        if compare(new_score, self.best["score"]):
             self.best["state"] = self.state.copy()
             self.best["score"] = new_score
 
@@ -64,10 +71,17 @@ def particle_test():
     assert (p.state == p.best["state"]).all()
     assert (np.mean(p.state ** 2) == p.best["score"]).all()
 
-    # 状態の更新がうまく行くかのテスト
+    # 状態の更新がうまく行くかのテスト（最小値を探索）
     p = Particle(2, 0, 1, 0, 1)
     virtual_global_best = np.zeros(2)
-    for _ in range(1000):
+    for _ in range(100):
+        p.update(virtual_global_best)
+    assert((p.best["state"] @ p.best["state"]) < 1E-3)
+
+    # 状態の更新がうまく行くかのテスト（最大値を探索）
+    p = Particle(2, 0, 1, 0, 1, eval_func=lambda s: -s[0]**2-s[1]**2, find_min=False)
+    virtual_global_best = np.zeros(2)
+    for _ in range(100):
         p.update(virtual_global_best)
     assert((p.best["state"] @ p.best["state"]) < 1E-3)
 
